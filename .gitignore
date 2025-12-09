@@ -1,0 +1,24 @@
+# Julia package artifacts
+Manifest.toml
+
+# Output files (can be regenerated)
+output/*.json
+output/*.txt
+
+# Keep the output directory structure
+!output/.gitkeep
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Julia compilation
+*.ji
+deps/deps.jl
+
