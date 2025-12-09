@@ -15,6 +15,11 @@ const PROJECT_ROOT = dirname(@__DIR__)
 # Load packages
 using Random
 using Statistics
+using Graphs
+using GraphMakie
+using CairoMakie
+using Colors
+using NetworkLayout
 
 # Load our modules
 include(joinpath(PROJECT_ROOT, "src", "ApproximateEEP.jl"))
@@ -22,9 +27,9 @@ include(joinpath(PROJECT_ROOT, "src", "ExternallyEquitablePartition.jl"))
 using .ApproximateEEP
 using .ExternallyEquitablePartition
 
-#=============================================================================
-  Zachary's Karate Club Network
-=============================================================================#
+# =============================================================================
+#   Zachary's Karate Club Network
+# =============================================================================
 
 function karate_club_graph()
     edges = [
@@ -66,9 +71,200 @@ function karate_club_graph()
     return A
 end
 
-#=============================================================================
-  Main Analysis
-=============================================================================#
+# =============================================================================
+#   Visualization Functions
+# =============================================================================
+
+"""
+    get_color_palette(n)
+
+Generate a visually distinct color palette for n groups.
+"""
+function get_color_palette(n::Int)
+    if n <= 10
+        # Use a carefully chosen palette for small n
+        base_colors = [
+            colorant"#E63946",  # Red
+            colorant"#457B9D",  # Steel blue
+            colorant"#2A9D8F",  # Teal
+            colorant"#E9C46A",  # Yellow
+            colorant"#F4A261",  # Orange
+            colorant"#9B5DE5",  # Purple
+            colorant"#00F5D4",  # Cyan
+            colorant"#F15BB5",  # Pink
+            colorant"#6A994E",  # Green
+            colorant"#BC6C25",  # Brown
+        ]
+        return base_colors[1:n]
+    else
+        # Use HSL color wheel for larger n
+        return [HSL(h, 0.7, 0.5) for h in range(0, 360, length=n+1)[1:end-1]]
+    end
+end
+
+"""
+    plot_partition(A, partition, title, filename; layout_seed=42)
+
+Create a visualization of a graph with nodes colored by partition.
+"""
+function plot_partition(A::Matrix, partition::Vector{Vector{Int}}, 
+                        title::String, filename::String;
+                        layout_seed::Int=42,
+                        subtitle::String="")
+    
+    n = size(A, 1)
+    
+    # Create Graphs.jl graph
+    g = SimpleGraph(n)
+    for i in 1:n
+        for j in i+1:n
+            if A[i,j] > 0
+                add_edge!(g, i, j)
+            end
+        end
+    end
+    
+    # Assign colors to nodes based on partition
+    colors = get_color_palette(length(partition))
+    node_colors = Vector{RGB{Float64}}(undef, n)
+    
+    for (cell_idx, cell) in enumerate(partition)
+        for v in cell
+            node_colors[v] = convert(RGB{Float64}, colors[cell_idx])
+        end
+    end
+    
+    # Create figure
+    fig = Figure(size=(900, 800), backgroundcolor=:white)
+    
+    # Title
+    Label(fig[1, 1], title, fontsize=18, font=:bold, tellwidth=false)
+    
+    # Subtitle
+    if !isempty(subtitle)
+        Label(fig[2, 1], subtitle, fontsize=14, color=:gray40, tellwidth=false)
+    end
+    
+    # Graph plot
+    ax = Axis(fig[3, 1], 
+              aspect=DataAspect(),
+              backgroundcolor=:white)
+    hidedecorations!(ax)
+    hidespines!(ax)
+    
+    # Use spring layout with fixed seed for reproducibility
+    Random.seed!(layout_seed)
+    layout = Spring(; iterations=100, C=2.0)
+    
+    # Plot the graph
+    graphplot!(ax, g,
+               node_color=node_colors,
+               node_size=25,
+               edge_color=(:gray, 0.4),
+               edge_width=1.5,
+               nlabels=string.(1:n),
+               nlabels_fontsize=9,
+               nlabels_color=:white,
+               layout=layout)
+    
+    # Legend - show cells with their sizes
+    if length(partition) <= 15
+        legend_elements = [MarkerElement(color=colors[i], marker=:circle, markersize=15) 
+                          for i in 1:length(partition)]
+        legend_labels = ["Cell $i (n=$(length(partition[i]))): $(length(partition[i]) <= 6 ? sort(partition[i]) : "$(length(partition[i])) vertices")" 
+                        for i in 1:length(partition)]
+        
+        Legend(fig[4, 1], legend_elements, legend_labels, 
+               "Partition Cells",
+               orientation=:horizontal,
+               tellwidth=false,
+               nbanks=min(4, length(partition)))
+    else
+        Label(fig[4, 1], "$(length(partition)) cells (too many to display individually)", 
+              fontsize=12, color=:gray50, tellwidth=false)
+    end
+    
+    # Save
+    save(filename, fig, px_per_unit=2)
+    println("Saved: $filename")
+    
+    return fig
+end
+
+"""
+    plot_comparison(A, partitions, labels, filename; layout_seed=42)
+
+Create a side-by-side comparison of multiple partitions.
+"""
+function plot_comparison(A::Matrix, partitions::Vector, labels::Vector{String}, 
+                         defects::Vector{Float64}, filename::String;
+                         layout_seed::Int=42)
+    
+    n = size(A, 1)
+    n_partitions = length(partitions)
+    
+    # Create Graphs.jl graph
+    g = SimpleGraph(n)
+    for i in 1:n
+        for j in i+1:n
+            if A[i,j] > 0
+                add_edge!(g, i, j)
+            end
+        end
+    end
+    
+    # Compute layout once (shared across all plots)
+    Random.seed!(layout_seed)
+    layout = Spring(; iterations=100, C=2.0)
+    pos = layout(g)
+    
+    # Create figure
+    fig = Figure(size=(400 * n_partitions, 500), backgroundcolor=:white)
+    
+    # Main title
+    Label(fig[1, 1:n_partitions], "Karate Club: Comparison of Partitions", 
+          fontsize=20, font=:bold, tellwidth=false)
+    
+    for (idx, (partition, label, defect)) in enumerate(zip(partitions, labels, defects))
+        # Assign colors
+        colors = get_color_palette(length(partition))
+        node_colors = Vector{RGB{Float64}}(undef, n)
+        
+        for (cell_idx, cell) in enumerate(partition)
+            for v in cell
+                node_colors[v] = convert(RGB{Float64}, colors[cell_idx])
+            end
+        end
+        
+        # Axis
+        ax = Axis(fig[2, idx],
+                  title="$label\n($(length(partition)) cells, defect=$(round(defect, digits=4)))",
+                  aspect=DataAspect(),
+                  backgroundcolor=:white)
+        hidedecorations!(ax)
+        hidespines!(ax)
+        
+        # Plot
+        graphplot!(ax, g,
+                   node_color=node_colors,
+                   node_size=20,
+                   edge_color=(:gray, 0.3),
+                   edge_width=1.0,
+                   nlabels=string.(1:n),
+                   nlabels_fontsize=8,
+                   nlabels_color=:white,
+                   layout=_->pos)  # Use precomputed positions
+    end
+    
+    save(filename, fig, px_per_unit=2)
+    println("Saved: $filename")
+    
+    return fig
+end
+
+# =============================================================================
+#   Main Analysis
+# =============================================================================
 
 function main()
     println("╔══════════════════════════════════════════════════════════════════╗")
@@ -85,6 +281,11 @@ function main()
     
     println("Graph: Zachary's Karate Club (n=$n)")
     println()
+    
+    # Store results for visualization
+    all_partitions = []
+    all_labels = String[]
+    all_defects = Float64[]
     
     # =========================================================================
     # Experiment 1: Pure defect minimization (find most equitable partition)
@@ -110,10 +311,6 @@ function main()
     println("  Cells: $(length(partition1))")
     println("  Defect: $(round(defect1, digits=6))")
     println("  Effective size: $(round(ApproximateEEP.effective_size(partition1, n), digits=4))")
-    println("  Partition:")
-    for (i, cell) in enumerate(partition1)
-        println("    Cell $i: $(sort(cell))")
-    end
     
     # =========================================================================
     # Experiment 2: Balance defect and effective size
@@ -139,29 +336,29 @@ function main()
     println("  Cells: $(length(partition2))")
     println("  Defect: $(round(defect2, digits=6))")
     println("  Effective size: $(round(ApproximateEEP.effective_size(partition2, n), digits=4))")
-    println("  Partition:")
-    for (i, cell) in enumerate(partition2)
-        println("    Cell $i: $(sort(cell))")
-    end
+    
+    push!(all_partitions, partition2)
+    push!(all_labels, "Balanced (α=1, β=0.5)")
+    push!(all_defects, defect2)
     
     # =========================================================================
-    # Experiment 3: Target specific number of cells
+    # Experiment 3: Target ~3-4 cells with moderate defect tolerance
     # =========================================================================
     println("\n" * "="^70)
-    println("EXPERIMENT 3: Target ~4 cells (α=1, β=0, γ=0.5)")
+    println("EXPERIMENT 3: Target moderate coarseness (α=1, β=0.2, γ=0.1)")
     println("="^70)
     println()
     
     partition3, defect3, energy3, _ = find_approximate_eep(A;
-        n_runs=5,
-        n_steps=20000,
+        n_runs=10,
+        n_steps=30000,
         α=1.0,
-        β=0.0,
-        γ=0.5,      # Penalize many cells
+        β=0.2,
+        γ=0.1,
         target_k=4,
-        T_init=2.0,
+        T_init=3.0,
         T_final=0.001,
-        seed=42,
+        seed=123,
         verbose=true
     )
     
@@ -173,6 +370,44 @@ function main()
     for (i, cell) in enumerate(partition3)
         println("    Cell $i: $(sort(cell))")
     end
+    
+    push!(all_partitions, partition3)
+    push!(all_labels, "Moderate (α=1, β=0.2, γ=0.1)")
+    push!(all_defects, defect3)
+    
+    # =========================================================================
+    # Experiment 4: Find partition with ~5 cells
+    # =========================================================================
+    println("\n" * "="^70)
+    println("EXPERIMENT 4: Target ~5 cells (α=1, β=0.1, γ=0.05)")
+    println("="^70)
+    println()
+    
+    partition4, defect4, energy4, _ = find_approximate_eep(A;
+        n_runs=10,
+        n_steps=30000,
+        α=1.0,
+        β=0.1,
+        γ=0.05,
+        target_k=5,
+        T_init=3.0,
+        T_final=0.001,
+        seed=456,
+        verbose=true
+    )
+    
+    println("\nResult:")
+    println("  Cells: $(length(partition4))")
+    println("  Defect: $(round(defect4, digits=6))")
+    println("  Effective size: $(round(ApproximateEEP.effective_size(partition4, n), digits=4))")
+    println("  Partition:")
+    for (i, cell) in enumerate(partition4)
+        println("    Cell $i: $(sort(cell))")
+    end
+    
+    push!(all_partitions, partition4)
+    push!(all_labels, "5-cell target")
+    push!(all_defects, defect4)
     
     # =========================================================================
     # Compare with exact EEP search
@@ -190,6 +425,10 @@ function main()
     println("  Defect: $(round(exact_defect, digits=6))")
     println("  Effective size: $(round(exact_eff, digits=4))")
     
+    push!(all_partitions, exact_partition)
+    push!(all_labels, "Exact EEP")
+    push!(all_defects, exact_defect)
+    
     # =========================================================================
     # Summary comparison
     # =========================================================================
@@ -201,15 +440,56 @@ function main()
     println("-"^70)
     println("Approx (defect only)      | $(lpad(length(partition1), 5)) | $(lpad(round(defect1, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition1, n), digits=3), 9))")
     println("Approx (balanced)         | $(lpad(length(partition2), 5)) | $(lpad(round(defect2, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition2, n), digits=3), 9))")
-    println("Approx (target k≈4)       | $(lpad(length(partition3), 5)) | $(lpad(round(defect3, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition3, n), digits=3), 9))")
+    println("Approx (moderate)         | $(lpad(length(partition3), 5)) | $(lpad(round(defect3, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition3, n), digits=3), 9))")
+    println("Approx (5-cell)           | $(lpad(length(partition4), 5)) | $(lpad(round(defect4, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition4, n), digits=3), 9))")
     println("Exact EEP                 | $(lpad(length(exact_partition), 5)) | $(lpad(round(exact_defect, digits=4), 9)) | $(lpad(round(exact_eff, digits=3), 9))")
     println()
     
+    # =========================================================================
+    # Generate visualizations
+    # =========================================================================
+    println("="^70)
+    println("GENERATING VISUALIZATIONS")
+    println("="^70)
+    println()
+    
+    # Individual partition plots
+    plot_partition(A, partition2, 
+                   "Approximate EEP: Balanced (α=1, β=0.5)",
+                   joinpath(output_dir, "karate_approx_balanced.png");
+                   subtitle="Cells: $(length(partition2)), Defect: $(round(defect2, digits=4)), Eff.Size: $(round(ApproximateEEP.effective_size(partition2, n), digits=2))")
+    
+    plot_partition(A, partition3, 
+                   "Approximate EEP: Moderate Coarseness",
+                   joinpath(output_dir, "karate_approx_moderate.png");
+                   subtitle="Cells: $(length(partition3)), Defect: $(round(defect3, digits=4)), Eff.Size: $(round(ApproximateEEP.effective_size(partition3, n), digits=2))")
+    
+    plot_partition(A, partition4, 
+                   "Approximate EEP: 5-Cell Target",
+                   joinpath(output_dir, "karate_approx_5cell.png");
+                   subtitle="Cells: $(length(partition4)), Defect: $(round(defect4, digits=4)), Eff.Size: $(round(ApproximateEEP.effective_size(partition4, n), digits=2))")
+    
+    plot_partition(A, exact_partition, 
+                   "Exact EEP (Minimum Effective Size)",
+                   joinpath(output_dir, "karate_exact_eep.png");
+                   subtitle="Cells: $(length(exact_partition)), Defect: 0.0, Eff.Size: $(round(exact_eff, digits=2))")
+    
+    # Comparison plot
+    plot_comparison(A, all_partitions, all_labels, all_defects,
+                    joinpath(output_dir, "karate_partition_comparison.png"))
+    
+    println()
     println("="^70)
     println("Analysis complete!")
     println("="^70)
+    println()
+    println("Output files:")
+    println("  - karate_approx_balanced.png")
+    println("  - karate_approx_moderate.png")
+    println("  - karate_approx_5cell.png")
+    println("  - karate_exact_eep.png")
+    println("  - karate_partition_comparison.png")
 end
 
 # Run
 main()
-
