@@ -290,17 +290,19 @@ function main()
     # =========================================================================
     # Experiment 1: Pure defect minimization (find most equitable partition)
     # =========================================================================
+    α1, β1, γ1 = 1.0, 0.0, 0.0
+    
     println("="^70)
-    println("EXPERIMENT 1: Minimize defect only (α=1, β=0)")
+    println("EXPERIMENT 1: Minimize defect only (α=$α1, β=$β1, γ=$γ1)")
     println("="^70)
     println()
     
     partition1, defect1, energy1, _ = find_approximate_eep(A;
         n_runs=5,
         n_steps=20000,
-        α=1.0,      # Defect weight
-        β=0.0,      # No effective size penalty
-        γ=0.0,      # No cell count penalty
+        α=α1,
+        β=β1,
+        γ=γ1,
         T_init=1.0,
         T_final=0.001,
         seed=42,
@@ -315,17 +317,19 @@ function main()
     # =========================================================================
     # Experiment 2: Balance defect and effective size
     # =========================================================================
+    α2, β2, γ2 = 1.0, 0.5, 0.0
+    
     println("\n" * "="^70)
-    println("EXPERIMENT 2: Balance defect and coarseness (α=1, β=0.5)")
+    println("EXPERIMENT 2: Balance defect and coarseness (α=$α2, β=$β2, γ=$γ2)")
     println("="^70)
     println()
     
     partition2, defect2, energy2, _ = find_approximate_eep(A;
         n_runs=5,
         n_steps=20000,
-        α=1.0,      # Defect weight
-        β=0.5,      # Effective size penalty (prefer coarser partitions)
-        γ=0.0,
+        α=α2,
+        β=β2,
+        γ=γ2,
         T_init=2.0,
         T_final=0.001,
         seed=42,
@@ -337,24 +341,27 @@ function main()
     println("  Defect: $(round(defect2, digits=6))")
     println("  Effective size: $(round(ApproximateEEP.effective_size(partition2, n), digits=4))")
     
+    label2 = "α=$α2, β=$β2, γ=$γ2"
     push!(all_partitions, partition2)
-    push!(all_labels, "Balanced (α=1, β=0.5)")
+    push!(all_labels, label2)
     push!(all_defects, defect2)
     
     # =========================================================================
     # Experiment 3: Target ~3-4 cells with moderate defect tolerance
     # =========================================================================
+    α3, β3, γ3 = 1.0, 0.2, 0.1
+    
     println("\n" * "="^70)
-    println("EXPERIMENT 3: Target moderate coarseness (α=1, β=0.2, γ=0.1)")
+    println("EXPERIMENT 3: Target moderate coarseness (α=$α3, β=$β3, γ=$γ3)")
     println("="^70)
     println()
     
     partition3, defect3, energy3, _ = find_approximate_eep(A;
         n_runs=10,
         n_steps=30000,
-        α=1.0,
-        β=0.2,
-        γ=0.1,
+        α=α3,
+        β=β3,
+        γ=γ3,
         target_k=4,
         T_init=3.0,
         T_final=0.001,
@@ -371,24 +378,27 @@ function main()
         println("    Cell $i: $(sort(cell))")
     end
     
+    label3 = "α=$α3, β=$β3, γ=$γ3"
     push!(all_partitions, partition3)
-    push!(all_labels, "Moderate (α=1, β=0.2, γ=0.1)")
+    push!(all_labels, label3)
     push!(all_defects, defect3)
     
     # =========================================================================
     # Experiment 4: Find partition with ~5 cells
     # =========================================================================
+    α4, β4, γ4 = 1.0, 0.1, 0.05
+    
     println("\n" * "="^70)
-    println("EXPERIMENT 4: Target ~5 cells (α=1, β=0.1, γ=0.05)")
+    println("EXPERIMENT 4: Target ~5 cells (α=$α4, β=$β4, γ=$γ4)")
     println("="^70)
     println()
     
     partition4, defect4, energy4, _ = find_approximate_eep(A;
         n_runs=10,
         n_steps=30000,
-        α=1.0,
-        β=0.1,
-        γ=0.05,
+        α=α4,
+        β=β4,
+        γ=γ4,
         target_k=5,
         T_init=3.0,
         T_final=0.001,
@@ -405,8 +415,9 @@ function main()
         println("    Cell $i: $(sort(cell))")
     end
     
+    label4 = "α=$α4, β=$β4, γ=$γ4"
     push!(all_partitions, partition4)
-    push!(all_labels, "5-cell target")
+    push!(all_labels, label4)
     push!(all_defects, defect4)
     
     # =========================================================================
@@ -436,13 +447,13 @@ function main()
     println("SUMMARY COMPARISON")
     println("="^70)
     println()
-    println("Method                    | Cells | Defect    | Eff. Size")
-    println("-"^70)
-    println("Approx (defect only)      | $(lpad(length(partition1), 5)) | $(lpad(round(defect1, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition1, n), digits=3), 9))")
-    println("Approx (balanced)         | $(lpad(length(partition2), 5)) | $(lpad(round(defect2, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition2, n), digits=3), 9))")
-    println("Approx (moderate)         | $(lpad(length(partition3), 5)) | $(lpad(round(defect3, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition3, n), digits=3), 9))")
-    println("Approx (5-cell)           | $(lpad(length(partition4), 5)) | $(lpad(round(defect4, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition4, n), digits=3), 9))")
-    println("Exact EEP                 | $(lpad(length(exact_partition), 5)) | $(lpad(round(exact_defect, digits=4), 9)) | $(lpad(round(exact_eff, digits=3), 9))")
+    println("Method                         | Cells | Defect    | Eff. Size")
+    println("-"^75)
+    println("Exp1 (α=$α1, β=$β1, γ=$γ1)       | $(lpad(length(partition1), 5)) | $(lpad(round(defect1, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition1, n), digits=3), 9))")
+    println("Exp2 (α=$α2, β=$β2, γ=$γ2)       | $(lpad(length(partition2), 5)) | $(lpad(round(defect2, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition2, n), digits=3), 9))")
+    println("Exp3 (α=$α3, β=$β3, γ=$γ3)     | $(lpad(length(partition3), 5)) | $(lpad(round(defect3, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition3, n), digits=3), 9))")
+    println("Exp4 (α=$α4, β=$β4, γ=$γ4)    | $(lpad(length(partition4), 5)) | $(lpad(round(defect4, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition4, n), digits=3), 9))")
+    println("Exact EEP                      | $(lpad(length(exact_partition), 5)) | $(lpad(round(exact_defect, digits=4), 9)) | $(lpad(round(exact_eff, digits=3), 9))")
     println()
     
     # =========================================================================
@@ -455,17 +466,17 @@ function main()
     
     # Individual partition plots
     plot_partition(A, partition2, 
-                   "Approximate EEP: Balanced (α=1, β=0.5)",
+                   "Approximate EEP ($label2)",
                    joinpath(output_dir, "karate_approx_balanced.png");
                    subtitle="Cells: $(length(partition2)), Defect: $(round(defect2, digits=4)), Eff.Size: $(round(ApproximateEEP.effective_size(partition2, n), digits=2))")
     
     plot_partition(A, partition3, 
-                   "Approximate EEP: Moderate Coarseness",
+                   "Approximate EEP ($label3)",
                    joinpath(output_dir, "karate_approx_moderate.png");
                    subtitle="Cells: $(length(partition3)), Defect: $(round(defect3, digits=4)), Eff.Size: $(round(ApproximateEEP.effective_size(partition3, n), digits=2))")
     
     plot_partition(A, partition4, 
-                   "Approximate EEP: 5-Cell Target",
+                   "Approximate EEP ($label4)",
                    joinpath(output_dir, "karate_approx_5cell.png");
                    subtitle="Cells: $(length(partition4)), Defect: $(round(defect4, digits=4)), Eff.Size: $(round(ApproximateEEP.effective_size(partition4, n), digits=2))")
     
