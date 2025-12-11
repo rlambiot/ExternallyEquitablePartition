@@ -315,12 +315,13 @@ function main()
     println("  Effective size: $(round(ApproximateEEP.effective_size(partition1, n), digits=4))")
     
     # =========================================================================
-    # Experiment 2: Balance defect and effective size
+    # Experiment 2: Few cells, allow imbalance
+    # β penalizes number of cells, γ=0 allows imbalance
     # =========================================================================
     α2, β2, γ2 = 1.0, 0.5, 0.0
     
     println("\n" * "="^70)
-    println("EXPERIMENT 2: Balance defect and coarseness (α=$α2, β=$β2, γ=$γ2)")
+    println("EXPERIMENT 2: Few cells, any balance (α=$α2, β=$β2, γ=$γ2)")
     println("="^70)
     println()
     
@@ -336,10 +337,12 @@ function main()
         verbose=true
     )
     
+    imbalance2 = ApproximateEEP.compute_imbalance(partition2, n)
     println("\nResult:")
     println("  Cells: $(length(partition2))")
     println("  Defect: $(round(defect2, digits=6))")
     println("  Effective size: $(round(ApproximateEEP.effective_size(partition2, n), digits=4))")
+    println("  Imbalance: $(round(imbalance2, digits=4))")
     
     label2 = "α=$α2, β=$β2, γ=$γ2"
     push!(all_partitions, partition2)
@@ -347,12 +350,13 @@ function main()
     push!(all_defects, defect2)
     
     # =========================================================================
-    # Experiment 3: Target ~3-4 cells with moderate defect tolerance
+    # Experiment 3: Few BALANCED cells
+    # β penalizes number of cells, γ penalizes imbalance
     # =========================================================================
-    α3, β3, γ3 = 1.0, 0.2, 0.1
+    α3, β3, γ3 = 1.0, 0.3, 2.0
     
     println("\n" * "="^70)
-    println("EXPERIMENT 3: Target moderate coarseness (α=$α3, β=$β3, γ=$γ3)")
+    println("EXPERIMENT 3: Few balanced cells (α=$α3, β=$β3, γ=$γ3)")
     println("="^70)
     println()
     
@@ -369,13 +373,15 @@ function main()
         verbose=true
     )
     
+    imbalance3 = ApproximateEEP.compute_imbalance(partition3, n)
     println("\nResult:")
     println("  Cells: $(length(partition3))")
     println("  Defect: $(round(defect3, digits=6))")
     println("  Effective size: $(round(ApproximateEEP.effective_size(partition3, n), digits=4))")
+    println("  Imbalance: $(round(imbalance3, digits=4))")
     println("  Partition:")
     for (i, cell) in enumerate(partition3)
-        println("    Cell $i: $(sort(cell))")
+        println("    Cell $i (size $(length(cell))): $(sort(cell))")
     end
     
     label3 = "α=$α3, β=$β3, γ=$γ3"
@@ -447,13 +453,18 @@ function main()
     println("SUMMARY COMPARISON")
     println("="^70)
     println()
-    println("Method                         | Cells | Defect    | Eff. Size")
+    # Compute imbalances for summary
+    imb1 = ApproximateEEP.compute_imbalance(partition1, n)
+    imb4 = ApproximateEEP.compute_imbalance(partition4, n)
+    imb_exact = ApproximateEEP.compute_imbalance(exact_partition, n)
+    
+    println("Method                    | Cells | Defect  | Eff.Size | Imbalance")
     println("-"^75)
-    println("Exp1 (α=$α1, β=$β1, γ=$γ1)       | $(lpad(length(partition1), 5)) | $(lpad(round(defect1, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition1, n), digits=3), 9))")
-    println("Exp2 (α=$α2, β=$β2, γ=$γ2)       | $(lpad(length(partition2), 5)) | $(lpad(round(defect2, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition2, n), digits=3), 9))")
-    println("Exp3 (α=$α3, β=$β3, γ=$γ3)     | $(lpad(length(partition3), 5)) | $(lpad(round(defect3, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition3, n), digits=3), 9))")
-    println("Exp4 (α=$α4, β=$β4, γ=$γ4)    | $(lpad(length(partition4), 5)) | $(lpad(round(defect4, digits=4), 9)) | $(lpad(round(ApproximateEEP.effective_size(partition4, n), digits=3), 9))")
-    println("Exact EEP                      | $(lpad(length(exact_partition), 5)) | $(lpad(round(exact_defect, digits=4), 9)) | $(lpad(round(exact_eff, digits=3), 9))")
+    println("Exp1 (α=$α1,β=$β1,γ=$γ1)    | $(lpad(length(partition1), 5)) | $(lpad(round(defect1, digits=4), 7)) | $(lpad(round(ApproximateEEP.effective_size(partition1, n), digits=2), 8)) | $(lpad(round(imb1, digits=3), 9))")
+    println("Exp2 (α=$α2,β=$β2,γ=$γ2)    | $(lpad(length(partition2), 5)) | $(lpad(round(defect2, digits=4), 7)) | $(lpad(round(ApproximateEEP.effective_size(partition2, n), digits=2), 8)) | $(lpad(round(imbalance2, digits=3), 9))")
+    println("Exp3 (α=$α3,β=$β3,γ=$γ3)    | $(lpad(length(partition3), 5)) | $(lpad(round(defect3, digits=4), 7)) | $(lpad(round(ApproximateEEP.effective_size(partition3, n), digits=2), 8)) | $(lpad(round(imbalance3, digits=3), 9))")
+    println("Exp4 (α=$α4,β=$β4,γ=$γ4)   | $(lpad(length(partition4), 5)) | $(lpad(round(defect4, digits=4), 7)) | $(lpad(round(ApproximateEEP.effective_size(partition4, n), digits=2), 8)) | $(lpad(round(imb4, digits=3), 9))")
+    println("Exact EEP                 | $(lpad(length(exact_partition), 5)) | $(lpad(round(exact_defect, digits=4), 7)) | $(lpad(round(exact_eff, digits=2), 8)) | $(lpad(round(imb_exact, digits=3), 9))")
     println()
     
     # =========================================================================

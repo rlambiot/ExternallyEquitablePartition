@@ -19,6 +19,7 @@ using JSON
 export find_approximate_eep,
        compute_energy,
        compute_defect,
+       compute_imbalance,
        run_metropolis,
        run_analysis_approximate
 
@@ -71,44 +72,68 @@ function compute_defect(A::AbstractMatrix, partition::Vector{Vector{Int}})
 end
 
 """
+    compute_imbalance(partition::Vector{Vector{Int}}, n::Int)
+
+Compute the imbalance of a partition.
+
+Imbalance = 1 - EffectiveSize / NumCells
+
+- Imbalance = 0: All cells have equal size (perfectly balanced)
+- Imbalance → 1: One cell has almost all vertices (maximally imbalanced)
+"""
+function compute_imbalance(partition::Vector{Vector{Int}}, n::Int)
+    k = length(partition)
+    if k <= 1
+        return 0.0
+    end
+    
+    # Compute effective size
+    H = 0.0
+    for cell in partition
+        p = length(cell) / n
+        if p > 0
+            H -= p * log(p)
+        end
+    end
+    eff_size = exp(H)
+    
+    # Imbalance: how far from perfectly balanced
+    return 1.0 - eff_size / k
+end
+
+"""
     compute_energy(A::AbstractMatrix, partition::Vector{Vector{Int}}; 
                    α::Float64=1.0, β::Float64=0.0, γ::Float64=0.0)
 
 Compute the total energy of a partition.
 
-Energy = α * defect + β * effective_size_penalty + γ * cell_count_penalty
+Energy = α * defect + β * num_cells + γ * imbalance
 
 Parameters:
 - α: Weight for equitability defect (higher = more equitable)
-- β: Weight for effective size (higher = prefer fewer effective groups)
-- γ: Weight for number of cells (higher = prefer fewer cells)
+- β: Weight for number of cells (higher = prefer fewer cells)
+- γ: Weight for imbalance (higher = prefer balanced cell sizes)
 
 The default (α=1, β=0, γ=0) optimizes purely for equitability.
+
+Note: Imbalance = 1 - EffectiveSize/NumCells, so:
+- Imbalance = 0 when all cells are equal size
+- Imbalance → 1 when one cell dominates
 """
 function compute_energy(A::AbstractMatrix, partition::Vector{Vector{Int}}; 
                         α::Float64=1.0, β::Float64=0.0, γ::Float64=0.0)
     n = size(A, 1)
     
-    # Defect term
+    # Defect term (how far from externally equitable)
     defect, _ = compute_defect(A, partition)
     
-    # Effective size term
-    eff_size = 1.0
-    if β > 0
-        H = 0.0
-        for cell in partition
-            p = length(cell) / n
-            if p > 0
-                H -= p * log(p)
-            end
-        end
-        eff_size = exp(H)
-    end
-    
-    # Cell count term
+    # Number of cells term
     k = length(partition)
     
-    return α * defect + β * eff_size + γ * k
+    # Imbalance term (how far from equal-sized cells)
+    imbalance = compute_imbalance(partition, n)
+    
+    return α * defect + β * k + γ * imbalance
 end
 
 #=============================================================================
@@ -467,11 +492,16 @@ Metropolis-Hastings runs.
 - `n_steps`: Steps per run
 - `T_init`, `T_final`: Temperature range for simulated annealing
 - `target_k`: If specified, initializes with this many cells
-- `α`: Weight for equitability defect
-- `β`: Weight for effective size (helps avoid trivial solutions)
-- `γ`: Weight for number of cells
+- `α`: Weight for equitability defect (higher = more equitable)
+- `β`: Weight for number of cells (higher = prefer fewer cells)
+- `γ`: Weight for imbalance (higher = prefer equal-sized cells)
 - `seed`: Random seed
 - `verbose`: Print progress
+
+# Energy function
+    E(π) = α * Defect + β * NumCells + γ * Imbalance
+    
+where Imbalance = 1 - EffectiveSize/NumCells ∈ [0, 1)
 
 # Returns
 - `best_partition`: Best partition found
