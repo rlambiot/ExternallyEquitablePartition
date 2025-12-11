@@ -318,7 +318,7 @@ function main()
     # Experiment 2: Few cells, allow imbalance
     # β penalizes number of cells, γ=0 allows imbalance
     # =========================================================================
-    α2, β2, γ2 = 1.0, 0.5, 0.0
+    α2, β2, γ2 = 1.0, 0.5, 20.0
     
     println("\n" * "="^70)
     println("EXPERIMENT 2: Few cells, any balance (α=$α2, β=$β2, γ=$γ2)")
